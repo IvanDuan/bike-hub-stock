@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f6f8;
+  --foreground: #1a1f2e;
+  --brand: #0056a4;
+  --brand-dark: #00437f;
+  --brand-light: #e8f1fa;
+  --brand-yellow: #ffd700;
+  --brand-green: #5ba467;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-green: var(--brand-green);
+  --font-sans: var(--font-brand);
+  --font-brand: var(--font-brand);
+  --font-brand-hand: var(--font-brand-hand);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-brand), system-ui, sans-serif;
+}
+
+input, select, textarea, button {
+  font: inherit;
+}
+
+.font-brand-hand {
+  font-family: var(--font-brand-hand), "Comic Sans MS", cursive;
+}
