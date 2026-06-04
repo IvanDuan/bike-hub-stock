@@ -18,6 +18,7 @@ import {
 } from "@/lib/bikes-api";
 import type { Bike } from "@/lib/types";
 import { compressPhoto } from "@/lib/compress-photo";
+import { requestListingDescription } from "@/lib/request-listing-description";
 import { storageErrorMessage } from "@/lib/safe-storage";
 
 export default function BikeDetailPage({
@@ -69,11 +70,33 @@ function BikeDetail({
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [regeneratingListing, setRegeneratingListing] = useState(false);
+
+  const onShopFloor = bike.status === "available" || bike.status === "refurb";
+
+  async function ensureListingDescription(force = false) {
+    setRegeneratingListing(true);
+    try {
+      await requestListingDescription(bike.id, { force });
+      onUpdate();
+    } catch {
+      // ignore — browse falls back to template text
+    } finally {
+      setRegeneratingListing(false);
+    }
+  }
 
   useEffect(() => {
     setAskingPrice(bike.asking_price?.toString() ?? "");
     setSoldPrice(bike.sold_price?.toString() ?? "");
   }, [bike]);
+
+  useEffect(() => {
+    if (!onShopFloor) return;
+    if ((bike.listing_description || "").trim()) return;
+    void ensureListingDescription(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bike.id, bike.status, bike.listing_description]);
 
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Untitled bike";
   const canEditAskingPrice =
@@ -112,6 +135,7 @@ function BikeDetail({
       asking_price: price,
       listed_at: new Date().toISOString(),
     });
+    void ensureListingDescription(true);
     setAskingPrice(priceValue);
     setShowPriceModal(false);
     setModalError(null);
@@ -152,6 +176,9 @@ function BikeDetail({
     }
 
     await update(patch);
+    if (status === "refurb") {
+      void ensureListingDescription(true);
+    }
   }
 
   async function confirmAvailableFromModal() {
@@ -269,6 +296,31 @@ function BikeDetail({
         <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
           <h2 className="text-sm font-semibold text-zinc-700">Internal notes</h2>
           <p className="mt-1 text-sm text-zinc-600">{bike.condition_notes}</p>
+        </section>
+      )}
+
+      {onShopFloor && (
+        <section className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
+          <h2 className="text-sm font-semibold text-zinc-700">Customer listing text</h2>
+          <p className="text-xs text-zinc-500">
+            Shown on the public browse page. Generated with AI from selling points and bike
+            details.
+          </p>
+          {bike.listing_description?.trim() ? (
+            <p className="text-sm leading-relaxed text-zinc-600">{bike.listing_description}</p>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              {regeneratingListing ? "Generating…" : "Not generated yet."}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={regeneratingListing || saving}
+            onClick={() => ensureListingDescription(true)}
+            className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 text-sm font-medium text-zinc-700 disabled:opacity-60"
+          >
+            {regeneratingListing ? "Generating…" : "Regenerate listing text"}
+          </button>
         </section>
       )}
 

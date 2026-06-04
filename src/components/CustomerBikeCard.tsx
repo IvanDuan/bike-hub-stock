@@ -1,15 +1,54 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import type { Bike } from "@/lib/types";
-import { branchById } from "@/lib/constants";
+import { branchById, isDemoMode } from "@/lib/constants";
 import { buildPromoDescription, workshopVisitLine } from "@/lib/facebook-post";
+import { requestListingDescription } from "@/lib/request-listing-description";
 import { BikePhotoCarousel } from "./BikePhotoCarousel";
 
 export function CustomerBikeCard({ bike }: { bike: Bike }) {
   const photos = bike.photos ?? [];
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Bike";
   const isAvailable = bike.status === "available";
+  const isOnShopFloor = bike.status === "available" || bike.status === "refurb";
   const branch = branchById(bike.branch_id);
-  const intro =
-    (bike.listing_description || "").trim() || buildPromoDescription(bike);
+
+  const [intro, setIntro] = useState(() => (bike.listing_description || "").trim());
+  const [loadingIntro, setLoadingIntro] = useState(false);
+
+  useEffect(() => {
+    const saved = (bike.listing_description || "").trim();
+    if (saved) {
+      setIntro(saved);
+      return;
+    }
+    if (!isOnShopFloor || isDemoMode()) {
+      setIntro(buildPromoDescription(bike));
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingIntro(true);
+    requestListingDescription(bike.id)
+      .then((text) => {
+        if (cancelled) return;
+        setIntro(text?.trim() || buildPromoDescription(bike));
+      })
+      .catch(() => {
+        if (!cancelled) setIntro(buildPromoDescription(bike));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingIntro(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fallback uses latest bike fields
+  }, [bike.id, bike.listing_description, isOnShopFloor]);
+
+  const displayIntro = intro || (loadingIntro ? "" : buildPromoDescription(bike));
 
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
@@ -37,7 +76,11 @@ export function CustomerBikeCard({ bike }: { bike: Bike }) {
         {isAvailable && bike.asking_price != null && (
           <p className="mt-2 text-lg font-bold text-brand">${bike.asking_price}</p>
         )}
-        <p className="mt-2 text-sm leading-relaxed text-zinc-600">{intro}</p>
+        {loadingIntro && !displayIntro ? (
+          <p className="mt-2 text-sm text-zinc-400">Writing listing…</p>
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-zinc-600">{displayIntro}</p>
+        )}
         {!isAvailable && (
           <p className="mt-2 text-sm text-amber-800">{workshopVisitLine(bike)}</p>
         )}
