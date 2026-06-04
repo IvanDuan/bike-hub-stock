@@ -17,32 +17,14 @@ export default function BrowsePage() {
   const [type, setType] = useState<BikeType | "all">("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
 
   const { bikes: availableRaw } = useBikes({ status: "available" });
   const { bikes: refurbRaw } = useBikes({ status: "refurb" });
-
-  const allBikes = useMemo(() => [...availableRaw, ...refurbRaw], [availableRaw, refurbRaw]);
-  const popularTags = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const b of allBikes) {
-      for (const t of b.selling_tags ?? []) {
-        const norm = t.trim().replace(/^#/, "").toLowerCase();
-        if (!norm) continue;
-        counts.set(norm, (counts.get(norm) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
-      .map(([t]) => t);
-  }, [allBikes]);
 
   const filterFn = useMemo(() => {
     const q = search.trim().toLowerCase();
     const min = minPrice.trim() ? Number(minPrice) : null;
     const max = maxPrice.trim() ? Number(maxPrice) : null;
-    const normalizedTagFilter = new Set(tagFilter.map((t) => t.trim().replace(/^#/, "").toLowerCase()));
 
     return (bikes: typeof availableRaw) =>
       bikes.filter((b) => {
@@ -69,15 +51,9 @@ export default function BrowsePage() {
           if (min != null && Number.isFinite(min) && (price ?? 0) < min) return false;
           if (max != null && Number.isFinite(max) && (price ?? 0) > max) return false;
         }
-        if (normalizedTagFilter.size > 0) {
-          const bikeTags = new Set((b.selling_tags ?? []).map((t) => t.trim().replace(/^#/, "").toLowerCase()));
-          for (const t of normalizedTagFilter) {
-            if (!bikeTags.has(t)) return false;
-          }
-        }
         return true;
       });
-  }, [category, type, search, minPrice, maxPrice, tagFilter]);
+  }, [category, type, search, minPrice, maxPrice]);
 
   const available = filterFn(availableRaw);
   const refurb = filterFn(refurbRaw);
@@ -169,39 +145,6 @@ export default function BrowsePage() {
             </label>
           </div>
         </div>
-
-        {popularTags.length > 0 && (
-          <section className="space-y-2">
-            <p className="text-sm font-semibold text-zinc-700">Filter by selling points</p>
-            <div className="flex flex-wrap gap-2">
-              {popularTags.map((t) => {
-                const selected = tagFilter.map((x) => x.toLowerCase()).includes(t);
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setTagFilter((prev) => {
-                        const normPrev = prev.map((x) => x.trim().replace(/^#/, "").toLowerCase());
-                        if (normPrev.includes(t)) {
-                          return prev.filter((x) => x.trim().replace(/^#/, "").toLowerCase() !== t);
-                        }
-                        return [...prev, t];
-                      });
-                    }}
-                    className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-                      selected
-                        ? "bg-brand text-white"
-                        : "bg-white text-zinc-700 ring-1 ring-zinc-200"
-                    }`}
-                  >
-                    #{t}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-zinc-900">

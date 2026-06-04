@@ -293,6 +293,9 @@ export default function AdminPage() {
                   <p className="truncate font-semibold text-zinc-900">
                     {p.display_name || "Unnamed user"}
                   </p>
+                  {p.email ? (
+                    <p className="mt-0.5 truncate text-sm text-zinc-500">{p.email}</p>
+                  ) : null}
                 </div>
                 {savingId === p.id && (
                   <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">

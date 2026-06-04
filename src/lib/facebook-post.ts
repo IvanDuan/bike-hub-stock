@@ -1,4 +1,4 @@
-import { SHOP_NAME, branchById, typeLabel } from "./constants";
+import { SHOP_NAME, branchById, typeLabel, type BikeType } from "./constants";
 import type { Bike } from "./types";
 
 function titleCaseWord(w: string) {
@@ -40,32 +40,75 @@ export function workshopVisitLine(bike: Bike): string {
   );
 }
 
-export function buildPromoDescription(bike: Bike): string {
-  const type = typeLabel(bike.type);
+function typePhrase(type: BikeType): string {
+  const phrases: Record<BikeType, string> = {
+    road: "road bike",
+    hybrid: "hybrid bike",
+    mtb: "mountain bike",
+    kids: "kids bike",
+    bmx: "BMX",
+    cruiser: "cruiser",
+    other: "bike",
+  };
+  return phrases[type] ?? "bike";
+}
+
+function bikeOpening(bike: Bike): string {
   const color = bike.color?.trim();
+  const make = bike.make?.trim();
+  const model = bike.model?.trim();
+  const phrase = typePhrase(bike.type);
+  const nameParts: string[] = [];
+  if (color) nameParts.push(titleCaseWord(color));
+  if (make) nameParts.push(make);
+  if (model && model.toLowerCase() !== make?.toLowerCase()) nameParts.push(model);
+  if (nameParts.length === 0) return `This ${phrase}`;
+  return `${nameParts.join(" ")} ${phrase}`;
+}
+
+function sellingFeaturesPhrase(points: string[]): string {
+  const parts = points.map((t) => t.toLowerCase());
+  if (parts.length === 1) return ` with ${parts[0]}`;
+  if (parts.length === 2) return ` with ${parts[0]} and ${parts[1]}`;
+  return ` with ${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+function promoCloser(points: string[], type: BikeType): string {
+  const hay = points.join(" ").toLowerCase();
+  if (/commute|commuter|city|urban|work/.test(hay)) return " Your perfect commute partner.";
+  if (/comfort|comfy|easy|relaxed|leisure/.test(hay)) return " A comfortable, easy-going ride.";
+  if (/family|kids|child|young/.test(hay) || type === "kids") {
+    return " Great for families and growing riders.";
+  }
+  if (/trail|mountain|adventure|off[- ]?road|rugged|robust/.test(hay) || type === "mtb") {
+    return " Ready for your next adventure.";
+  }
+  if (/fast|light|sport|fitness/.test(hay) || type === "road") {
+    return " Built for fitness and fun on the road.";
+  }
+  if (points.length >= 2) return " A quality refurbished find from our hub.";
+  if (points.length === 1) return " A great value ride from our community workshop.";
+  return "";
+}
+
+export function buildPromoDescription(bike: Bike): string {
   const size = bike.frame_size?.trim();
-
-  const bits: string[] = [];
-  bits.push(`${color ? `${titleCaseWord(color)} ` : ""}${type} bike`.trim());
-  if (size) bits.push(`Size: ${size}`);
-
   const points = (bike.selling_tags ?? [])
     .map(normalizeSellingPoint)
     .filter(Boolean)
-    // Avoid noisy meta-tags in customer-facing copy
     .filter((t) => !/^kids?$/i.test(t) && !/^adult$/i.test(t) && !/^ready(\s|-)?to(\s|-)?ride$/i.test(t))
     .slice(0, 5);
 
+  let body = bikeOpening(bike);
   if (points.length) {
-    bits.push(`Highlights: ${points.join(", ")}.`);
-    bits.push(testRideVisitLine(bike));
-    return bits.join(" ");
+    body += `${sellingFeaturesPhrase(points)}.`;
+    body += promoCloser(points, bike.type);
+  } else {
+    body += ". Refurbished and checked by our community bike shop team.";
   }
-
-  bits.push(
-    `Refurbished and checked by our community bike shop team. ${testRideVisitLine(bike)}`
-  );
-  return bits.join(" ");
+  if (size) body += ` Size ${size}.`;
+  body += ` ${testRideVisitLine(bike)}`;
+  return body.replace(/\s+/g, " ").trim();
 }
 
 export function buildFacebookPost(bike: Bike): string {

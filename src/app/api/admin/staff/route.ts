@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { profileRoleForDb } from "@/lib/admin-api";
+import { getServiceAdmin, profileRoleForDb } from "@/lib/admin-api";
 import { createClient } from "@/lib/supabase/server";
 import type { StaffProfile } from "@/lib/types";
 
@@ -53,9 +53,22 @@ export async function GET() {
     return NextResponse.json({ error: profilesError.message }, { status: 500 });
   }
 
+  const rows = (profiles ?? []) as StaffProfile[];
+  const emailById = new Map<string, string>();
+  const { admin } = getServiceAdmin();
+  if (admin && rows.length > 0) {
+    const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of usersData?.users ?? []) {
+      if (u.id && u.email) emailById.set(u.id, u.email);
+    }
+  }
+
   return NextResponse.json({
     branches: (branches ?? []) as BranchRow[],
-    profiles: (profiles ?? []) as StaffProfile[],
+    profiles: rows.map((p) => ({
+      ...p,
+      email: emailById.get(p.id) ?? null,
+    })),
   });
 }
 

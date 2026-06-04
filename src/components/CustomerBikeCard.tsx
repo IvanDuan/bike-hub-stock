@@ -1,5 +1,5 @@
 import type { Bike } from "@/lib/types";
-import { branchById, typeLabel } from "@/lib/constants";
+import { branchById } from "@/lib/constants";
 import { buildPromoDescription, workshopVisitLine } from "@/lib/facebook-post";
 import { BikePhotoFrame } from "./BikePhotoFrame";
 
@@ -8,6 +8,8 @@ export function CustomerBikeCard({ bike }: { bike: Bike }) {
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Bike";
   const isAvailable = bike.status === "available";
   const branch = branchById(bike.branch_id);
+  const intro =
+    (bike.listing_description || "").trim() || buildPromoDescription(bike);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
@@ -35,21 +37,13 @@ export function CustomerBikeCard({ bike }: { bike: Bike }) {
               {branch.name}
             </span>
           )}
-          <p className="text-sm text-zinc-500">
-            {typeLabel(bike.type)}
-            {bike.color ? <> · {bike.color}</> : null}
-          </p>
         </div>
         {isAvailable && bike.asking_price != null && (
           <p className="mt-2 text-lg font-bold text-brand">${bike.asking_price}</p>
         )}
+        <p className="mt-2 text-sm leading-relaxed text-zinc-600">{intro}</p>
         {!isAvailable && (
           <p className="mt-2 text-sm text-amber-800">{workshopVisitLine(bike)}</p>
-        )}
-        {isAvailable && (
-          <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            {buildPromoDescription(bike)}
-          </p>
         )}
       </div>
     </article>

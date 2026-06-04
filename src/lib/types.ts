@@ -15,6 +15,7 @@ export interface StaffProfile {
   display_name: string;
   role: StaffRole;
   branch_id: BranchId | null;
+  email?: string | null;
 }
 
 export interface BikePhoto {
