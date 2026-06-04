@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       frame_size: row.frame_size as string,
       selling_tags: (row.selling_tags as string[] | null) ?? [],
       asking_price: row.asking_price as number | null,
-      branch_id: row.branch_id as string | null,
+      branch_id: row.branch_id as Bike["branch_id"] | null,
     });
 
     const bodyText = await generateListingDescriptionWithAI(input);

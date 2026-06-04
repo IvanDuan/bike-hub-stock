@@ -1,6 +1,6 @@
-import { branchById, typeLabel } from "./constants";
+import { branchById, typeLabel, type BikeType } from "./constants";
 import { textFromOpenAIResponse } from "./openai-text";
-import type { Bike, BikeType } from "./types";
+import type { Bike } from "./types";
 
 export type ListingDescriptionInput = {
   make: string;
@@ -10,7 +10,7 @@ export type ListingDescriptionInput = {
   frame_size?: string;
   selling_tags: string[];
   asking_price?: number | null;
-  branch_id?: string | null;
+  branch_id?: Bike["branch_id"] | null;
 };
 
 export function bikeToListingInput(bike: Pick<
