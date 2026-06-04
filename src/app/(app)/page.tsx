@@ -4,8 +4,10 @@ import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BikeCard } from "@/components/BikeCard";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { BIKE_CATEGORIES, BIKE_STATUSES, type BikeCategory } from "@/lib/constants";
 import { useBikes } from "@/hooks/useBikes";
+import { useRefetchOnVisible } from "@/hooks/useRefetchOnVisible";
 
 function HomeContent() {
   const router = useRouter();
@@ -23,7 +25,8 @@ function HomeContent() {
     [statusParam, search, categoryParam]
   );
 
-  const { bikes } = useBikes(filters);
+  const { bikes, refresh } = useBikes(filters);
+  useRefetchOnVisible(refresh);
 
   function setCategory(category: BikeCategory) {
     const params = new URLSearchParams(searchParams.toString());
@@ -48,11 +51,15 @@ function HomeContent() {
   }
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="rounded-2xl border border-brand-light/80 bg-white px-4 py-3 shadow-sm ring-1 ring-brand-light">
+        <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Stock</h1>
-          <p className="text-sm text-zinc-500">{bikes.length} bikes</p>
+          <p className="text-sm text-zinc-600">
+            {bikes.length} bike{bikes.length !== 1 ? "s" : ""}
+          </p>
         </div>
         <Link
           href="/bikes/new"
@@ -60,6 +67,7 @@ function HomeContent() {
         >
           + Add
         </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 rounded-xl bg-zinc-100 p-1.5 ring-1 ring-zinc-200">
@@ -91,32 +99,6 @@ function HomeContent() {
         className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-base outline-none focus:border-brand"
       />
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <button
-          type="button"
-          onClick={() => setStatus(null)}
-          className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
-            !statusParam ? "bg-brand text-white" : "bg-white text-zinc-600 ring-1 ring-zinc-200"
-          }`}
-        >
-          All
-        </button>
-        {BIKE_STATUSES.filter((s) => s.value !== "sold").map((s) => (
-          <button
-            key={s.value}
-            type="button"
-            onClick={() => setStatus(s.value)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
-              statusParam === s.value
-                ? "bg-brand text-white"
-                : "bg-white text-zinc-600 ring-1 ring-zinc-200"
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
       <div className="space-y-3">
         {bikes.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center text-zinc-500">
@@ -127,6 +109,7 @@ function HomeContent() {
         )}
       </div>
     </div>
+    </PullToRefresh>
   );
 }
 

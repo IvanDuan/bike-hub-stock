@@ -11,13 +11,15 @@ import {
 import { isDemoMode } from "@/lib/constants";
 import { demoStore } from "@/lib/demo-store";
 import { createClient } from "@/lib/supabase/client";
-import type { StaffSession } from "@/lib/types";
+import { validateBranchForUser } from "@/lib/branch-auth";
+import { BRANCHES, type BranchId } from "@/lib/constants";
+import type { StaffRole, StaffSession } from "@/lib/types";
 
 interface AuthContextValue {
   session: StaffSession | null;
   loading: boolean;
   demoMode: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
+  login: (email: string, password: string, selectedBranchId?: BranchId) => Promise<string | null>;
   logout: () => Promise<void>;
 }
 
@@ -53,6 +55,37 @@ function sessionFromUser(user: {
   };
 }
 
+async function enrichSession(session: StaffSession): Promise<StaffSession> {
+  if (!session.email) return session;
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return session;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, branch_id, display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const rawRole = (profile?.role as StaffRole | undefined) ?? undefined;
+  const role: StaffRole | undefined = rawRole === "manager" ? "branch_manager" : rawRole;
+  const branchId = (profile?.branch_id as BranchId | null | undefined) ?? undefined;
+  const displayName = (profile?.display_name as string | undefined) ?? undefined;
+  const branchName = branchId
+    ? BRANCHES.find((b) => b.id === branchId)?.name
+    : undefined;
+
+  return {
+    ...session,
+    name: displayName ?? session.name,
+    role,
+    branchId: branchId ?? session.branchId,
+    branchName,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const demoMode = isDemoMode();
   const [session, setSession] = useState<StaffSession | null>(null);
@@ -80,11 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } = await supabase.auth.getSession();
 
           if (!cancelled && initialSession?.user) {
-            setSession(sessionFromUser(initialSession.user));
+            setSession(await enrichSession(sessionFromUser(initialSession.user)));
           } else {
             const { data } = await supabase.auth.getUser();
             if (!cancelled && data.user) {
-              setSession(sessionFromUser(data.user));
+              setSession(await enrichSession(sessionFromUser(data.user)));
             }
           }
           if (!cancelled) setLoading(false);
@@ -95,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, authSession) => {
           if (authSession?.user) {
-            setSession(sessionFromUser(authSession.user));
+            enrichSession(sessionFromUser(authSession.user)).then((s) => setSession(s));
           } else if (!loginPageHandlesAuth()) {
             setSession(null);
           }
@@ -114,17 +147,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [demoMode]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, selectedBranchId?: BranchId) => {
       if (demoMode) {
         const staff = demoStore.login(email, password);
         if (!staff) return "Use any email with @ (e.g. demo@bikehub.local)";
-        setSession(staff);
+        const branch = selectedBranchId
+          ? BRANCHES.find((b) => b.id === selectedBranchId)
+          : undefined;
+        setSession({
+          ...staff,
+          branchId: selectedBranchId ?? staff.branchId,
+          branchName: branch?.name ?? staff.branchName,
+        });
         return null;
       }
 
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return error?.message ?? null;
+      if (error) return error.message;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return "Sign-in failed. Try again.";
+
+      if (selectedBranchId) {
+        const branchError = await validateBranchForUser(user.id, selectedBranchId);
+        if (branchError) {
+          await supabase.auth.signOut();
+          setSession(null);
+          return branchError;
+        }
+      }
+
+      setSession(await enrichSession(sessionFromUser(user)));
+      return null;
     },
     [demoMode]
   );

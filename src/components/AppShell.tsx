@@ -2,10 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { branchMismatchMessage } from "@/lib/branch-auth";
+import { branchLocation, type BranchId } from "@/lib/constants";
 import { useAuth } from "./AuthProvider";
+
+const BRANCH_STORAGE_KEY = "bike-hub-stock-branch";
 import { BottomNav } from "./BottomNav";
 import { BrandHeaderBar } from "./BrandLogo";
-import { ShareBrowseLink } from "./ShareBrowseLink";
+import { HeaderMenu } from "./HeaderMenu";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { session, loading, demoMode, logout } = useAuth();
@@ -16,6 +20,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [loading, session, router]);
+
+  useEffect(() => {
+    if (loading || !session?.branchId || typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(BRANCH_STORAGE_KEY) as BranchId | null;
+    if (saved && session.branchId !== saved) {
+      const msg = branchMismatchMessage(saved, session.branchId);
+      window.sessionStorage.setItem("bike-hub-login-error", msg);
+      logout().then(() => router.replace("/login?error=branch"));
+    }
+  }, [loading, session, logout, router]);
+
+  useEffect(() => {
+    if (!session?.branchName) return;
+    document.title = `${session.branchName} — Stock`;
+  }, [session?.branchName]);
 
   if (loading) {
     return (
@@ -31,9 +50,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 shadow-sm">
         <BrandHeaderBar
+          location={branchLocation(session.branchId)}
           subtitle={`Hi, ${session.name}`}
-          onSignOut={() => logout().then(() => router.replace("/login"))}
-          trailing={<ShareBrowseLink />}
+          trailing={
+            <HeaderMenu
+              onSignOut={() => logout().then(() => router.replace("/login"))}
+            />
+          }
         />
         {demoMode && (
           <div className="bg-brand-yellow/20 px-4 py-2 text-center text-xs text-brand-dark">
@@ -41,7 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
-      <main className="mx-auto max-w-lg px-4 py-4">{children}</main>
+      <main id="app-main-scroll" className="mx-auto max-w-lg px-4 py-4">
+        {children}
+      </main>
       <BottomNav />
     </div>
   );

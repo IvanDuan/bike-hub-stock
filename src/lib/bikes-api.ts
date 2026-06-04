@@ -5,6 +5,7 @@ import { isDemoMode } from "@/lib/constants";
 import { demoStore } from "@/lib/demo-store";
 import { dataUrlToBlob } from "@/lib/data-url";
 import type { Bike, BikePhoto, DashboardStats } from "@/lib/types";
+import { newId } from "@/lib/safe-storage";
 
 const BUCKET = "bike-photos";
 
@@ -19,6 +20,7 @@ type DbPhoto = {
 type DbBike = {
   id: string;
   status: BikeStatus;
+  branch_id?: string | null;
   make: string;
   model: string;
   type: BikeType;
@@ -26,6 +28,7 @@ type DbBike = {
   color: string;
   condition_notes: string;
   listing_description: string;
+  selling_tags?: string[] | null;
   asking_price: number | null;
   sold_price: number | null;
   price_negotiable: boolean;
@@ -72,6 +75,7 @@ function mapBike(row: DbBike): Bike {
     color: row.color,
     condition_notes: row.condition_notes,
     listing_description: row.listing_description,
+    selling_tags: row.selling_tags ?? undefined,
     asking_price: row.asking_price,
     sold_price: row.sold_price,
     price_negotiable: row.price_negotiable,
@@ -83,6 +87,7 @@ function mapBike(row: DbBike): Bike {
     updated_by: row.updated_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    branch_id: (row.branch_id as Bike["branch_id"]) ?? undefined,
     photos,
   };
 }
@@ -155,18 +160,19 @@ export async function getBike(bikeId: string): Promise<Bike | null> {
 
 export async function createBike(
   input: {
-    make: string;
-    model: string;
-    type: BikeType;
-    frame_size: string;
-    color: string;
-    condition_notes: string;
+    make?: string;
+    model?: string;
+    type?: BikeType;
+    frame_size?: string;
+    color?: string;
+    condition_notes?: string;
+    selling_tags?: string[];
     photoDataUrl?: string;
   },
   staffEmail: string
 ): Promise<Bike> {
   if (isDemoMode()) {
-    return demoStore.createBike(input, staffEmail);
+    return demoStore.createBike(input as any, staffEmail);
   }
 
   const supabase = createClient();
@@ -175,17 +181,30 @@ export async function createBike(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in.");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("branch_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const branchId = (profile?.branch_id as string | null | undefined) ?? null;
+  if (!branchId) {
+    throw new Error("Your account has no branch assigned yet.");
+  }
+
   const timestamp = new Date().toISOString();
   const { data: bike, error } = await supabase
     .from("bikes")
     .insert({
+      branch_id: branchId,
       status: "donated",
-      make: input.make,
-      model: input.model,
-      type: input.type,
-      frame_size: input.frame_size,
-      color: input.color,
-      condition_notes: input.condition_notes,
+      make: input.make ?? "",
+      model: input.model ?? "",
+      type: input.type ?? "other",
+      frame_size: input.frame_size ?? "",
+      color: input.color ?? "",
+      condition_notes: input.condition_notes ?? "",
+      selling_tags: input.selling_tags ?? [],
       donated_at: timestamp,
       created_by: user.id,
       updated_by: user.id,
@@ -195,12 +214,39 @@ export async function createBike(
 
   if (error) throw new Error(error.message);
 
+  // Upsert tags for reuse (best-effort; don't block bike creation)
+  try {
+    if (input.selling_tags && input.selling_tags.length > 0) {
+      const unique = Array.from(
+        new Set(input.selling_tags.map((t) => t.trim()).filter(Boolean))
+      );
+      if (unique.length > 0) {
+        await supabase.from("tags").upsert(
+          unique.map((name) => ({ branch_id: branchId, name, created_by: user.id })),
+          { onConflict: "branch_id,name", ignoreDuplicates: true }
+        );
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   if (input.photoDataUrl) {
     await addPhoto(bike.id, input.photoDataUrl);
     return (await getBike(bike.id))!;
   }
 
   return mapBike(bike as DbBike);
+}
+
+export async function listTags(): Promise<string[]> {
+  if (isDemoMode()) {
+    return demoStore.listTags();
+  }
+  const supabase = createClient();
+  const { data, error } = await supabase.from("tags").select("name").order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: { name: string }) => r.name);
 }
 
 export async function updateBike(
@@ -259,7 +305,7 @@ export async function addPhoto(
     .limit(1);
 
   const sortOrder = (existing?.[0]?.sort_order ?? -1) + 1;
-  const path = `${bikeId}/${crypto.randomUUID()}.jpg`;
+  const path = `${bikeId}/${newId()}.jpg`;
   const blob = dataUrlToBlob(photoDataUrl);
 
   const { error: uploadError } = await supabase.storage

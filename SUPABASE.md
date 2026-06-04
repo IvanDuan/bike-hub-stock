@@ -26,14 +26,15 @@ Follow these steps once to connect the app to live shared data.
 2. **Authentication** → **Users** → **Invite user** for each staff member (5–6 emails)
 3. Optional: **Authentication** → **Settings** → disable **Enable sign ups** so only invited staff can join
 4. **Authentication** → **URL Configuration**:
-   - **Site URL**: `http://localhost:3000` (for local dev) — add `https://bike-hub-stock.vercel.app` when deploying
-   - **Redirect URLs** (add all that apply):
-     - `http://localhost:3000/login`
-     - `http://localhost:3000/auth/confirm`
-     - `http://localhost:3000/auth/callback`
-     - `https://bike-hub-stock.vercel.app/login`
-     - `https://bike-hub-stock.vercel.app/auth/confirm`
-     - `https://bike-hub-stock.vercel.app/auth/callback`
+   - **Site URL**: match how you run the app (e.g. `http://localhost:3001` or your LAN URL `http://192.168.1.39:3001`)
+   - **Redirect URLs** (add every URL you use — Supabase blocks redirects not on this list):
+     - `http://localhost:3001/**`
+     - `http://192.168.1.39:3001/**` (replace with your Mac’s LAN IP from `ipconfig getifaddr en0`)
+     - `http://localhost:3001/login`
+     - `http://localhost:3001/auth/confirm`
+     - `http://localhost:3001/auth/callback`
+     - Production URLs when deployed (e.g. `https://bike-hub-stock.vercel.app/**`)
+   - In `.env.local`, set `NEXT_PUBLIC_APP_URL` to the same base URL staff will use (LAN IP if they accept invites on a phone).
 5. **Authentication** → **Email Templates** → **Invite user** — replace the link with:
    ```html
    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Accept invite</a>
@@ -75,8 +76,19 @@ Sign in with a staff email you invited (check inbox for password setup link).
 ## 6. Add environment variables on Vercel
 
 1. [vercel.com](https://vercel.com) → your **bike-hub-stock** project → **Settings** → **Environment Variables**
-2. Add the same two variables for **Production**, **Preview**, and **Development**
-3. **Redeploy** (Deployments → … → Redeploy)
+2. Add for **Production**, **Preview**, and **Development**:
+
+| Variable | Notes |
+|----------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | From Supabase → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` / `public` key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` secret — server only |
+| `NEXT_PUBLIC_APP_URL` | Your live app URL, e.g. `https://bike-hub-stock.vercel.app` |
+| `OPENAI_API_KEY` | Optional — AI add-bike |
+
+3. Run SQL migrations **003** and **004** in Supabase if not already applied.
+4. **Authentication** → **URL Configuration**: Site URL and Redirect URLs must include your Vercel domain (see step 4 above).
+5. **Redeploy** after env changes (Deployments → … → Redeploy).
 
 ## 7. Verify
 

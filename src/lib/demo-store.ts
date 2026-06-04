@@ -11,6 +11,7 @@ const SESSION_KEY = "bike-hub-stock-session";
 interface DemoData {
   bikes: Bike[];
   photos: BikePhoto[];
+  tags: string[];
 }
 
 const DEMO_STAFF: StaffSession[] = [
@@ -157,6 +158,7 @@ function seedData(): DemoData {
         uploaded_at: daysAgo(1),
       },
     ],
+    tags: ["new tires", "lightweight", "comfortable", "great commuter", "kids bike"],
   };
 }
 
@@ -254,12 +256,13 @@ export const demoStore = {
 
   createBike(
     input: {
-      make: string;
-      model: string;
-      type: BikeType;
-      frame_size: string;
-      color: string;
-      condition_notes: string;
+      make?: string;
+      model?: string;
+      type?: BikeType;
+      frame_size?: string;
+      color?: string;
+      condition_notes?: string;
+      selling_tags?: string[];
       photoDataUrl?: string;
     },
     staffEmail: string
@@ -271,13 +274,14 @@ export const demoStore = {
     const bike: Bike = {
       id: bikeId,
       status: "donated",
-      make: input.make,
-      model: input.model,
-      type: input.type,
-      frame_size: input.frame_size,
-      color: input.color,
-      condition_notes: input.condition_notes,
+      make: input.make ?? "",
+      model: input.model ?? "",
+      type: input.type ?? "other",
+      frame_size: input.frame_size ?? "",
+      color: input.color ?? "",
+      condition_notes: input.condition_notes ?? "",
       listing_description: "",
+      selling_tags: input.selling_tags ?? [],
       asking_price: null,
       sold_price: null,
       price_negotiable: true,
@@ -293,6 +297,16 @@ export const demoStore = {
 
     data.bikes.push(bike);
 
+    if (input.selling_tags && input.selling_tags.length > 0) {
+      const existing = new Set(data.tags.map((t) => t.toLowerCase()));
+      input.selling_tags
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .forEach((t) => {
+          if (!existing.has(t.toLowerCase())) data.tags.push(t);
+        });
+    }
+
     if (input.photoDataUrl) {
       data.photos.push({
         id: id(),
@@ -305,6 +319,11 @@ export const demoStore = {
 
     write(data);
     return this.getBike(bikeId)!;
+  },
+
+  listTags(): string[] {
+    const data = read();
+    return [...data.tags].sort((a, b) => a.localeCompare(b));
   },
 
   updateBike(

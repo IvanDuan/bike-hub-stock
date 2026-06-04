@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BikePhotoFrame } from "@/components/BikePhotoFrame";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { useAuth } from "@/components/AuthProvider";
 import { buildFacebookPost } from "@/lib/facebook-post";
 import { markFbPosted } from "@/lib/bikes-api";
 import { useBikes } from "@/hooks/useBikes";
+import { useRefetchOnVisible } from "@/hooks/useRefetchOnVisible";
 
 export default function PromotePage() {
   const { session } = useAuth();
   const { bikes, refresh } = useBikes({ status: "available" });
+  useRefetchOnVisible(refresh);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const ready = useMemo(
@@ -33,6 +36,7 @@ export default function PromotePage() {
   }
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Promote on Facebook</h1>
@@ -106,5 +110,6 @@ export default function PromotePage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }

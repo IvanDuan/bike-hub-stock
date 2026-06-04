@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { useAuth } from "@/components/AuthProvider";
+import { BikeHubCard, BikeHubNetworkBadge, BikeHubPageHero } from "@/components/BikeHubTheme";
 import { BrandLogo } from "@/components/BrandLogo";
+import { BRANCHES, type BranchId } from "@/lib/constants";
+import { BRAND_ASSETS } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "signin" | "set-password";
+
+const BRANCH_STORAGE_KEY = "bike-hub-stock-branch";
 
 function hashParams(): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams();
@@ -59,16 +65,46 @@ export default function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>(() => initialMode(searchParams));
+  const [branchId, setBranchId] = useState<BranchId>(() => {
+    if (typeof window === "undefined") return "mt-roskill";
+    const saved = window.localStorage.getItem(BRANCH_STORAGE_KEY) as BranchId | null;
+    return saved && BRANCHES.some((b) => b.id === saved) ? saved : "mt-roskill";
+  });
   const [email, setEmail] = useState(demoMode ? "demo@bikehub.local" : "");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState(demoMode ? "demo" : "");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(
-    searchParams.get("error") === "auth"
-      ? "Sign-in link expired or invalid. Ask your admin to send a new invite."
-      : null
-  );
+  const [error, setError] = useState<string | null>(() => {
+    if (searchParams.get("error") === "auth") {
+      return "Sign-in link expired or invalid. Ask your admin to send a new invite.";
+    }
+    if (searchParams.get("error") === "branch" && typeof window !== "undefined") {
+      return sessionStorage.getItem("bike-hub-login-error");
+    }
+    return null;
+  });
   const [submitting, setSubmitting] = useState(false);
-  const [checkingInvite, setCheckingInvite] = useState(!demoMode);
+  const [checkingInvite, setCheckingInvite] = useState(() => {
+    if (demoMode) return false;
+    if (typeof window === "undefined") return true;
+    const hash = hashParams();
+    return Boolean(
+      searchParams.get("token_hash") ||
+        searchParams.get("setup") === "password" ||
+        hash.get("access_token") ||
+        hash.get("type") === "invite" ||
+        hash.get("type") === "signup"
+    );
+  });
+
+  useEffect(() => {
+    if (searchParams.get("error") === "branch") {
+      const stored = sessionStorage.getItem("bike-hub-login-error");
+      if (stored) setError(stored);
+      sessionStorage.removeItem("bike-hub-login-error");
+      router.replace("/login");
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (demoMode || authLoading) return;
@@ -114,6 +150,11 @@ export default function LoginPageContent() {
           data: { session: activeSession },
         } = await supabase.auth.getSession();
         if (activeSession?.user?.email) setEmail(activeSession.user.email);
+        if (activeSession?.user?.user_metadata?.display_name) {
+          setDisplayName(activeSession.user.user_metadata.display_name as string);
+        } else if (activeSession?.user?.email) {
+          setDisplayName(activeSession.user.email.split("@")[0] ?? "");
+        }
         setMode("set-password");
         setCheckingInvite(false);
         return;
@@ -126,6 +167,11 @@ export default function LoginPageContent() {
 
         if (hashSession?.user) {
           setEmail(hashSession.user.email ?? "");
+          if (hashSession.user.user_metadata?.display_name) {
+            setDisplayName(hashSession.user.user_metadata.display_name as string);
+          } else if (hashSession.user.email) {
+            setDisplayName(hashSession.user.email.split("@")[0] ?? "");
+          }
           setMode("set-password");
           clearAuthHash();
           setCheckingInvite(false);
@@ -134,7 +180,12 @@ export default function LoginPageContent() {
       }
 
       if (session && mode !== "set-password" && searchParams.get("setup") !== "password") {
-        router.replace(searchParams.get("next") ?? "/");
+        const saved = window.localStorage.getItem(BRANCH_STORAGE_KEY) as BranchId | null;
+        // Only auto-redirect when profile branch matches the branch they selected last time.
+        if (session.branchId && saved && session.branchId === saved) {
+          router.replace(searchParams.get("next") ?? "/");
+        }
+        setCheckingInvite(false);
         return;
       }
 
@@ -148,17 +199,25 @@ export default function LoginPageContent() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const err = await login(email, password);
+    const err = await login(email, password, branchId);
     setSubmitting(false);
     if (err) {
       setError(err);
       return;
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(BRANCH_STORAGE_KEY, branchId);
+      sessionStorage.removeItem("bike-hub-login-error");
     }
     router.replace(searchParams.get("next") ?? "/");
   }
 
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!displayName.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -172,12 +231,27 @@ export default function LoginPageContent() {
     setError(null);
 
     const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const { error: updateError } = await supabase.auth.updateUser({
+      password,
+      data: { display_name: displayName.trim() },
+    });
     setSubmitting(false);
 
     if (updateError) {
       setError(updateError.message);
       return;
+    }
+
+    // Keep profiles.display_name in sync for permissions + UI
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").update({ display_name: displayName.trim() }).eq("id", user.id);
+      }
+    } catch {
+      // non-blocking
     }
 
     router.replace(searchParams.get("next") ?? "/");
@@ -193,24 +267,48 @@ export default function LoginPageContent() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <div className="bg-brand px-4 pb-8 pt-10">
-        <div className="mx-auto w-full max-w-sm">
-          <BrandLogo variant="banner" />
-          <p className="mt-4 text-center text-sm text-white/85">Staff stock tracker</p>
+      <BikeHubPageHero tall>
+        <div className="mx-auto w-full max-w-sm text-center">
+          <BrandLogo variant="lockup" hideLocation className="inline-block" />
+          <div className="mx-auto mt-3 max-w-[14rem] overflow-hidden rounded-xl shadow-md ring-2 ring-white/25 sm:max-w-[16rem]">
+            <Image
+              src={BRAND_ASSETS.communityMap}
+              alt="Auckland community bike hubs map"
+              width={1024}
+              height={512}
+              className="h-auto w-full"
+              priority
+            />
+          </div>
+          <p className="mt-3 text-sm font-medium tracking-wide text-white/90">
+            bike stock tracker
+          </p>
+          <BikeHubNetworkBadge />
         </div>
-      </div>
+      </BikeHubPageHero>
 
-      <div className="mx-auto w-full max-w-sm flex-1 px-4 pb-8 pt-6">
+      <div className="mx-auto w-full max-w-sm flex-1 px-4 pb-8 pt-2">
         {mode === "set-password" ? (
-          <form
-            onSubmit={handleSetPassword}
-            className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-          >
+          <BikeHubCard>
+          <form onSubmit={handleSetPassword}>
             <h2 className="text-lg font-semibold text-zinc-900">Set your password</h2>
             <p className="mt-1 text-sm text-zinc-500">
               Welcome! Choose a password for{" "}
               <strong>{email || "your account"}</strong>, then you can sign in anytime.
             </p>
+
+            <label className="mt-4 block text-sm font-medium text-zinc-700">
+              Your name
+              <input
+                type="text"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+                autoComplete="name"
+                placeholder="e.g. Sam"
+              />
+            </label>
 
             <label className="mt-4 block text-sm font-medium text-zinc-700">
               New password
@@ -252,11 +350,25 @@ export default function LoginPageContent() {
               {submitting ? "Saving…" : "Save password & continue"}
             </button>
           </form>
+          </BikeHubCard>
         ) : (
-          <form
-            onSubmit={handleSignIn}
-            className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-          >
+          <BikeHubCard>
+          <form onSubmit={handleSignIn}>
+            <label className="block text-sm font-medium text-zinc-700">
+              Branch
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value as BranchId)}
+                className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand-light"
+              >
+                {BRANCHES.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="block text-sm font-medium text-zinc-700">
               Email
               <input
@@ -303,6 +415,7 @@ export default function LoginPageContent() {
               </p>
             )}
           </form>
+          </BikeHubCard>
         )}
       </div>
     </div>

@@ -1,5 +1,22 @@
 import type { BikeStatus, BikeType } from "./constants";
 
+export type BranchId = "mt-roskill" | "new-lynn";
+// Note: we keep "manager" for backward-compat with older DB enum values,
+// but the app treats it as "branch_manager".
+export type StaffRole = "superadmin" | "branch_manager" | "staff" | "manager";
+
+export interface Branch {
+  id: BranchId;
+  name: string;
+}
+
+export interface StaffProfile {
+  id: string;
+  display_name: string;
+  role: StaffRole;
+  branch_id: BranchId | null;
+}
+
 export interface BikePhoto {
   id: string;
   bike_id: string;
@@ -18,6 +35,7 @@ export interface Bike {
   color: string;
   condition_notes: string;
   listing_description: string;
+  selling_tags?: string[];
   asking_price: number | null;
   sold_price: number | null;
   price_negotiable: boolean;
@@ -29,6 +47,7 @@ export interface Bike {
   updated_at: string;
   created_by: string | null;
   updated_by: string | null;
+  branch_id?: BranchId | null;
   photos?: BikePhoto[];
 }
 
@@ -55,4 +74,7 @@ export interface DashboardStats {
 export interface StaffSession {
   email: string;
   name: string;
+  role?: StaffRole;
+  branchId?: BranchId;
+  branchName?: string;
 }

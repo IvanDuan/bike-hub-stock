@@ -1,5 +1,31 @@
 export const SHOP_NAME = "Bike Hub Mount Roskill";
 
+export const BRANCHES = [
+  {
+    id: "mt-roskill",
+    name: "Bike Hub Mount Roskill",
+    location: "Mount Roskill",
+    address: "740 Sandringham Road, Mount Roskill",
+  },
+  {
+    id: "new-lynn",
+    name: "Bike Hub New Lynn",
+    location: "New Lynn",
+    address: "EcoHub, 1 Olympic Place, New Lynn",
+  },
+] as const;
+
+export type BranchId = (typeof BRANCHES)[number]["id"];
+
+export function branchById(branchId: BranchId | null | undefined) {
+  if (!branchId) return undefined;
+  return BRANCHES.find((b) => b.id === branchId);
+}
+
+export function branchLocation(branchId: BranchId | null | undefined): string {
+  return branchById(branchId)?.location ?? BRANCHES[0].location;
+}
+
 export const BIKE_STATUSES = [
   { value: "donated", label: "Donated", color: "bg-slate-100 text-slate-700" },
   { value: "refurb", label: "In Refurb", color: "bg-amber-100 text-amber-800" },

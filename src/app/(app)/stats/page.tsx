@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { useStats } from "@/hooks/useBikes";
+import { useRefetchOnVisible } from "@/hooks/useRefetchOnVisible";
 
 function StatBlock({
   label,
@@ -40,13 +42,19 @@ function StatBlock({
 }
 
 export default function StatsPage() {
-  const { stats, loading } = useStats();
+  const { stats, loading, refresh } = useStats();
+  useRefetchOnVisible(refresh);
 
-  if (loading || !stats) {
+  if (loading && !stats) {
     return <p className="text-zinc-500">Loading statistics…</p>;
   }
 
+  if (!stats) {
+    return <p className="text-zinc-500">Could not load statistics.</p>;
+  }
+
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Statistics</h1>
@@ -135,5 +143,6 @@ export default function StatsPage() {
         </div>
       </section>
     </div>
+    </PullToRefresh>
   );
 }

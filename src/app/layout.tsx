@@ -20,9 +20,23 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   title: `${SHOP_NAME} — Stock`,
   description: "Track donated, refurbished, and sold bikes at Bike Hub Mount Roskill",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Bike Hub Stock",
+  other: {
+    // iOS standalone (Add to Home Screen) requires this meta tag.
+    "apple-mobile-web-app-capable": "yes",
+  },
+  icons: {
+    icon: [
+      { url: "/pwa/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/pwa/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     title: "Bike Hub Stock",
+    statusBarStyle: "black-translucent",
   },
 };
 

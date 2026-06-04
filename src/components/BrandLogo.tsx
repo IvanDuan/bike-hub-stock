@@ -1,19 +1,29 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
+import { BikeHubHeroPattern } from "@/components/BikeHubTheme";
 import { BRAND_ASSETS, SHOP_LOCATION, SHOP_NAME_BOLD } from "@/lib/brand";
 
 type BrandLogoProps = {
   variant?: "banner" | "lockup";
   className?: string;
+  /** Branch location line under "Bike Hub" (e.g. Mount Roskill, New Lynn). */
+  location?: string;
+  /** Hide branch/location line (e.g. login page for all hubs). */
+  hideLocation?: boolean;
 };
 
-export function BrandLogo({ variant = "lockup", className = "" }: BrandLogoProps) {
+export function BrandLogo({
+  variant = "lockup",
+  className = "",
+  location = SHOP_LOCATION,
+  hideLocation = false,
+}: BrandLogoProps) {
   if (variant === "banner") {
     return (
       <div className={`overflow-hidden rounded-2xl ${className}`}>
         <Image
           src={BRAND_ASSETS.banner}
-          alt="Bike Hub Mount Roskill"
+          alt="Bike Hub"
           width={1024}
           height={244}
           className="h-auto w-full"
@@ -28,39 +38,33 @@ export function BrandLogo({ variant = "lockup", className = "" }: BrandLogoProps
       <p className="text-2xl font-extrabold leading-none tracking-tight text-white">
         {SHOP_NAME_BOLD}
       </p>
-      <p className="font-brand-hand text-xl leading-tight text-brand-yellow">
-        {SHOP_LOCATION}
-      </p>
+      {!hideLocation && (
+        <p className="font-brand-hand text-xl leading-tight text-brand-yellow">
+          {location}
+        </p>
+      )}
     </div>
   );
 }
 
 export function BrandHeaderBar({
   subtitle,
-  onSignOut,
   trailing,
+  location,
 }: {
   subtitle?: string;
-  onSignOut?: () => void;
   trailing?: ReactNode;
+  location?: string;
 }) {
   return (
-    <div className="bg-brand px-4 py-3">
-      <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-        <BrandLogo />
+    <div className="relative overflow-hidden bg-gradient-to-r from-brand to-brand-dark px-4 py-3">
+      <BikeHubHeroPattern className="opacity-[0.1]" />
+      <div className="relative z-10 mx-auto flex max-w-lg items-center justify-between gap-3">
+        <BrandLogo location={location} />
         <div className="flex shrink-0 flex-col items-end gap-1">
           {subtitle && <p className="text-xs text-white/85">{subtitle}</p>}
           <div className="flex items-center gap-2">
             {trailing}
-            {onSignOut && (
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/10"
-              >
-                Sign out
-              </button>
-            )}
           </div>
         </div>
       </div>

@@ -31,6 +31,7 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isPublic =
+    path.startsWith("/api/") ||
     path.startsWith("/login") ||
     path.startsWith("/browse") ||
     path.startsWith("/brand") ||
@@ -50,6 +51,30 @@ export async function updateSession(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", path);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Admin/stats routes
+  const managerOnly =
+    path.startsWith("/stats") ||
+    path.startsWith("/sold") ||
+    path.startsWith("/admin") ||
+    path.startsWith("/api/admin") ||
+    path.startsWith("/api/export");
+
+  if (user && managerOnly) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const role = (profile?.role as string | undefined) ?? "staff";
+    const isPrivileged = role === "superadmin" || role === "branch_manager" || role === "manager";
+    if (!isPrivileged) {
+      const home = request.nextUrl.clone();
+      home.pathname = "/";
+      return NextResponse.redirect(home);
+    }
   }
 
   if (user && path === "/login" && request.nextUrl.searchParams.get("setup") !== "password") {

@@ -28,8 +28,8 @@ export function useBikes(filters?: BikeFilters) {
     filters?.category,
   ]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       setBikes(await listBikes(query));
@@ -37,7 +37,7 @@ export function useBikes(filters?: BikeFilters) {
       setError(err instanceof Error ? err.message : "Failed to load bikes");
       setBikes([]);
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }, [query]);
 
@@ -45,7 +45,9 @@ export function useBikes(filters?: BikeFilters) {
     load();
   }, [load]);
 
-  return { bikes, loading, error, refresh: load };
+  const refresh = useCallback(() => load({ silent: true }), [load]);
+
+  return { bikes, loading, error, refresh };
 }
 
 export function useBike(id: string) {
@@ -77,12 +79,22 @@ export function useStats() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats()
-      .then(setStats)
-      .catch(() => setStats(null))
-      .finally(() => setLoading(false));
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      setStats(await fetchStats());
+    } catch {
+      setStats(null);
+    } finally {
+      if (!options?.silent) setLoading(false);
+    }
   }, []);
 
-  return { stats, loading };
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const refresh = useCallback(() => load({ silent: true }), [load]);
+
+  return { stats, loading, refresh };
 }

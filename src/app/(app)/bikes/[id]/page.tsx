@@ -4,11 +4,11 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BikePhotoGallery } from "@/components/BikePhotoGallery";
+import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth } from "@/components/AuthProvider";
 import { useBike } from "@/hooks/useBikes";
 import { BIKE_STATUSES, type BikeStatus, typeLabel } from "@/lib/constants";
-import { buildFacebookPost } from "@/lib/facebook-post";
 import {
   addPhoto,
   deleteBike,
@@ -59,11 +59,13 @@ function BikeDetail({
   const [copied, setCopied] = useState(false);
   const [askingPrice, setAskingPrice] = useState(bike.asking_price?.toString() ?? "");
   const [soldPrice, setSoldPrice] = useState(bike.sold_price?.toString() ?? "");
-  const [listingDescription, setListingDescription] = useState(bike.listing_description);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSoldModal, setShowSoldModal] = useState(false);
   const [modalAskingPrice, setModalAskingPrice] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
+  const [modalSoldPrice, setModalSoldPrice] = useState("");
+  const [modalSoldError, setModalSoldError] = useState<string | null>(null);
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -71,10 +73,20 @@ function BikeDetail({
   useEffect(() => {
     setAskingPrice(bike.asking_price?.toString() ?? "");
     setSoldPrice(bike.sold_price?.toString() ?? "");
-    setListingDescription(bike.listing_description);
   }, [bike]);
 
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Untitled bike";
+  const canEditAskingPrice =
+    bike.status === "refurb" ||
+    bike.status === "available" ||
+    bike.status === "reserved";
+
+  function saveAskingPrice() {
+    const price = parseFloat(askingPrice);
+    if (Number.isNaN(price) || price <= 0) return;
+    if (price === bike.asking_price) return;
+    update({ asking_price: price });
+  }
 
   async function update(patch: Partial<Bike>) {
     if (!session) return;
@@ -99,7 +111,6 @@ function BikeDetail({
       status: "available",
       asking_price: price,
       listed_at: new Date().toISOString(),
-      listing_description: listingDescription,
     });
     setAskingPrice(priceValue);
     setShowPriceModal(false);
@@ -131,9 +142,13 @@ function BikeDetail({
     const patch: Partial<Bike> = { status };
 
     if (status === "sold") {
-      const sold = soldPrice ? parseFloat(soldPrice) : parseFloat(askingPrice);
-      patch.sold_price = Number.isNaN(sold) ? bike.asking_price : sold;
-      patch.sold_at = new Date().toISOString();
+      if (bike.status !== "sold") {
+        // Collect optional final price after status change intent.
+        setModalSoldPrice(soldPrice.trim() || "");
+        setModalSoldError(null);
+        setShowSoldModal(true);
+        return;
+      }
     }
 
     await update(patch);
@@ -144,8 +159,27 @@ function BikeDetail({
     if (error) setModalError(error);
   }
 
+  async function confirmSoldFromModal() {
+    const sold =
+      modalSoldPrice.trim() !== ""
+        ? parseFloat(modalSoldPrice)
+        : soldPrice
+          ? parseFloat(soldPrice)
+          : parseFloat(askingPrice);
+
+    const patch: Partial<Bike> = {
+      status: "sold",
+      sold_at: new Date().toISOString(),
+      sold_price: Number.isNaN(sold) ? bike.asking_price : sold,
+    };
+
+    await update(patch);
+    setSoldPrice((patch.sold_price ?? "").toString());
+    setShowSoldModal(false);
+    setModalSoldError(null);
+  }
+
   async function copyPost() {
-    await navigator.clipboard.writeText(buildFacebookPost(bike));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -209,7 +243,6 @@ function BikeDetail({
           ref={fileRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -239,12 +272,14 @@ function BikeDetail({
         </section>
       )}
 
-      {bike.status === "refurb" && (
+      {canEditAskingPrice && (
         <section className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
           <h2 className="text-sm font-semibold text-zinc-700">Listing details</h2>
-          <p className="text-xs text-zinc-500">
-            Set asking price while in refurb, or you&apos;ll be prompted when marking Available.
-          </p>
+          {bike.status === "refurb" && (
+            <p className="text-xs text-zinc-500">
+              Set asking price while in refurb, or you&apos;ll be prompted when marking Available.
+            </p>
+          )}
           <label className="block text-sm text-zinc-600">
             Asking price ($)
             <input
@@ -253,43 +288,9 @@ function BikeDetail({
               step="1"
               value={askingPrice}
               onChange={(e) => setAskingPrice(e.target.value)}
-              onBlur={() => {
-                const price = parseFloat(askingPrice);
-                if (!Number.isNaN(price) && price > 0) {
-                  update({ asking_price: price, listing_description: listingDescription });
-                }
-              }}
+              onBlur={saveAskingPrice}
               className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3"
               placeholder="e.g. 250"
-            />
-          </label>
-          <label className="block text-sm text-zinc-600">
-            Facebook description
-            <textarea
-              value={listingDescription}
-              onChange={(e) => setListingDescription(e.target.value)}
-              onBlur={() => update({ listing_description: listingDescription })}
-              rows={3}
-              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3"
-              placeholder="Recently refurbished with new tires…"
-            />
-          </label>
-        </section>
-      )}
-
-      {bike.status === "available" && (
-        <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-          <h2 className="text-sm font-semibold text-zinc-700">Listing description</h2>
-          <label className="mt-2 block text-sm text-zinc-600">
-            Facebook description
-            <textarea
-              value={listingDescription}
-              onChange={(e) => setListingDescription(e.target.value)}
-              onBlur={() => {
-                if (session) update({ listing_description: listingDescription });
-              }}
-              rows={3}
-              className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3"
             />
           </label>
         </section>
@@ -312,56 +313,25 @@ function BikeDetail({
         </div>
       </section>
 
-      {bike.status === "available" && (
-        <section className="space-y-3 rounded-2xl bg-brand-light p-4 ring-1 ring-brand-light">
-          <h2 className="text-sm font-semibold text-brand-dark">Facebook post</h2>
-          <pre className="whitespace-pre-wrap rounded-xl bg-white p-3 text-xs text-zinc-700">
-            {buildFacebookPost(bike)}
-          </pre>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={copyPost}
-              className="rounded-xl bg-brand py-2.5 text-sm font-semibold text-white"
-            >
-              {copied ? "Copied!" : "Copy post"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (session) markFbPosted(bike.id, session.email).then(onUpdate);
-              }}
-              className="rounded-xl border border-brand bg-white py-2.5 text-sm font-medium text-brand-dark"
-            >
-              Mark posted
-            </button>
-          </div>
-        </section>
-      )}
-
-      {bike.status !== "sold" && (
+      {bike.status === "sold" && (
         <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-          <h2 className="text-sm font-semibold text-zinc-700">Mark as sold</h2>
+          <h2 className="text-sm font-semibold text-zinc-700">Sold</h2>
           <label className="mt-2 block text-sm text-zinc-600">
-            Final sale price (optional)
+            Final sale price
             <input
               type="number"
               min="0"
               step="1"
               value={soldPrice}
               onChange={(e) => setSoldPrice(e.target.value)}
+              onBlur={() => {
+                const sold = parseFloat(soldPrice);
+                if (!Number.isNaN(sold) && sold !== bike.sold_price) update({ sold_price: sold });
+              }}
               placeholder={bike.asking_price?.toString() ?? "Same as asking"}
               className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3"
             />
           </label>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => setStatus("sold")}
-            className="mt-3 w-full rounded-xl bg-zinc-900 py-3 font-semibold text-white disabled:opacity-60"
-          >
-            Mark sold
-          </button>
         </section>
       )}
 
@@ -390,96 +360,135 @@ function BikeDetail({
         </button>
       </section>
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <div
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
-            role="dialog"
-            aria-labelledby="delete-bike-title"
+      <Modal
+        open={showDeleteModal}
+        onClose={() => !deleting && setShowDeleteModal(false)}
+        title="Delete this bike?"
+        titleId="delete-bike-title"
+      >
+        <p className="mt-1 text-sm text-zinc-500">
+          <strong>{title}</strong> will be removed permanently, including all photos.
+          {bike.status === "sold" && " Sale stats for this bike will be lost too."}
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => setShowDeleteModal(false)}
+            className="rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-700 disabled:opacity-60"
           >
-            <h2 id="delete-bike-title" className="text-lg font-semibold text-zinc-900">
-              Delete this bike?
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              <strong>{title}</strong> will be removed permanently, including all photos.
-              {bike.status === "sold" && " Sale stats for this bike will be lost too."}
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={() => setShowDeleteModal(false)}
-                className="rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-700 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={handleDeleteBike}
-                className="rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={handleDeleteBike}
+            className="rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
         </div>
-      )}
+      </Modal>
 
-      {showPriceModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-          <div
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
-            role="dialog"
-            aria-labelledby="asking-price-title"
+      <Modal
+        open={showPriceModal}
+        onClose={() => {
+          setShowPriceModal(false);
+          setModalError(null);
+        }}
+        title="Set asking price"
+        titleId="asking-price-title"
+      >
+        <p className="mt-1 text-sm text-zinc-500">
+          Required before this bike can be marked Available.
+        </p>
+        <label className="mt-4 block text-sm font-medium text-zinc-700">
+          Asking price ($)
+          <input
+            type="number"
+            min="1"
+            step="1"
+            autoFocus
+            value={modalAskingPrice}
+            onChange={(e) => {
+              setModalAskingPrice(e.target.value);
+              setModalError(null);
+            }}
+            className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3 text-base"
+            placeholder="e.g. 250"
+          />
+        </label>
+        {modalError && <p className="mt-2 text-sm text-red-600">{modalError}</p>}
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowPriceModal(false);
+              setModalError(null);
+            }}
+            className="rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-700"
           >
-            <h2 id="asking-price-title" className="text-lg font-semibold text-zinc-900">
-              Set asking price
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Required before this bike can be marked Available.
-            </p>
-            <label className="mt-4 block text-sm font-medium text-zinc-700">
-              Asking price ($)
-              <input
-                type="number"
-                min="1"
-                step="1"
-                autoFocus
-                value={modalAskingPrice}
-                onChange={(e) => {
-                  setModalAskingPrice(e.target.value);
-                  setModalError(null);
-                }}
-                className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3 text-base"
-                placeholder="e.g. 250"
-              />
-            </label>
-            {modalError && (
-              <p className="mt-2 text-sm text-red-600">{modalError}</p>
-            )}
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPriceModal(false);
-                  setModalError(null);
-                }}
-                className="rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmAvailableFromModal}
-                className="rounded-xl bg-brand py-3 text-sm font-semibold text-white"
-              >
-                Mark Available
-              </button>
-            </div>
-          </div>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmAvailableFromModal}
+            className="rounded-xl bg-brand py-3 text-sm font-semibold text-white"
+          >
+            Mark Available
+          </button>
         </div>
-      )}
+      </Modal>
+
+      <Modal
+        open={showSoldModal}
+        onClose={() => {
+          setShowSoldModal(false);
+          setModalSoldError(null);
+        }}
+        title="Mark as sold"
+        titleId="sold-price-title"
+      >
+        <p className="mt-1 text-sm text-zinc-500">
+          Optional: enter the final sale price. Leave blank to use the asking price.
+        </p>
+        <label className="mt-4 block text-sm font-medium text-zinc-700">
+          Final sale price ($)
+          <input
+            type="number"
+            min="0"
+            step="1"
+            autoFocus
+            value={modalSoldPrice}
+            onChange={(e) => {
+              setModalSoldPrice(e.target.value);
+              setModalSoldError(null);
+            }}
+            className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-3 text-base"
+            placeholder={bike.asking_price?.toString() ?? "Same as asking"}
+          />
+        </label>
+        {modalSoldError && <p className="mt-2 text-sm text-red-600">{modalSoldError}</p>}
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowSoldModal(false);
+              setModalSoldError(null);
+            }}
+            className="rounded-xl border border-zinc-200 py-3 text-sm font-medium text-zinc-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmSoldFromModal}
+            className="rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white"
+          >
+            Mark Sold
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

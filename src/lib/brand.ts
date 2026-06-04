@@ -14,4 +14,5 @@ export const BRAND = {
 
 export const BRAND_ASSETS = {
   banner: "/brand/banner.png",
+  communityMap: "/brand/community-map.png",
 } as const;

@@ -53,7 +53,9 @@ npm run build
 npm start
 ```
 
-## Features (v1)
+See [CHANGELOG.md](./CHANGELOG.md) for version history (current: **v0.2.0**).
+
+## Features (v0.2)
 
 - **Dashboard** — available, in refurb, ready to post, sold this month
 - **Stock** — search and filter by status

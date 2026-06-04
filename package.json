@@ -1,12 +1,13 @@
 {
   "name": "bike-hub-stock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack --hostname 127.0.0.1",
     "dev:lan": "next dev --webpack --hostname 0.0.0.0 -p 3001",
     "build": "next build",
     "start": "next start",
+    "start:lan": "next start --hostname 0.0.0.0 -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
