@@ -1,4 +1,4 @@
-import { SHOP_NAME, branchById, typeLabel, type BikeType } from "./constants";
+import { SHOP_NAME, branchById, type BikeType } from "./constants";
 import type { Bike } from "./types";
 
 function titleCaseWord(w: string) {
@@ -114,21 +114,19 @@ export function buildPromoDescription(bike: Bike): string {
 export function buildFacebookPost(bike: Bike): string {
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Bike";
   const size = bike.frame_size ? ` — ${bike.frame_size}` : "";
-  const type = typeLabel(bike.type);
   const priceLine = bike.asking_price
     ? `Asking $${bike.asking_price}`
     : "Price on request";
 
-  const description =
-    (bike.listing_description || "").trim() || buildPromoDescription(bike) || `${type} bike ready to ride.`;
+  const listing = (bike.listing_description || "").trim();
+  const description = listing
+    ? listing
+    : "Open this bike in the app and tap “Regenerate listing text” to create the post copy.";
 
   return `🚲 Available at ${SHOP_NAME}!
 
 ${title}${size}
 ${priceLine}
 
-${description}
-
-Quality second-hand bikes from your community bike shop.
-${testRideVisitLine(bike)}`;
+${description}`;
 }
