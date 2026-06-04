@@ -25,21 +25,19 @@ Follow these steps once to connect the app to live shared data.
 1. Go to **Authentication** → **Providers** → ensure **Email** is enabled
 2. **Authentication** → **Users** → **Invite user** for each staff member (5–6 emails)
 3. Optional: **Authentication** → **Settings** → disable **Enable sign ups** so only invited staff can join
-4. **Authentication** → **URL Configuration**:
-   - **Site URL**: match how you run the app (e.g. `http://localhost:3001` or your LAN URL `http://192.168.1.39:3001`)
-   - **Redirect URLs** (add every URL you use — Supabase blocks redirects not on this list):
-     - `http://localhost:3001/**`
-     - `http://192.168.1.39:3001/**` (replace with your Mac’s LAN IP from `ipconfig getifaddr en0`)
-     - `http://localhost:3001/login`
-     - `http://localhost:3001/auth/confirm`
-     - `http://localhost:3001/auth/callback`
-     - Production URLs when deployed (e.g. `https://bike-hub-stock.vercel.app/**`)
-   - In `.env.local`, set `NEXT_PUBLIC_APP_URL` to the same base URL staff will use (LAN IP if they accept invites on a phone).
-5. **Authentication** → **Email Templates** → **Invite user** — replace the link with:
-   ```html
-   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Accept invite</a>
-   ```
-   (Or replace `{{ .ConfirmationURL }}` in the template body with that URL.)
+4. **Authentication** → **URL Configuration** (critical for invite links):
+   - **Site URL** (production): `https://bike-hub-stock.vercel.app`  
+     If this is still `http://localhost:3000`, invite emails will send people to localhost.
+   - **Redirect URLs** — add all that apply:
+     - `https://bike-hub-stock.vercel.app/**`
+     - `http://localhost:3001/**` (local dev only)
+   - For LAN phone testing only, also add your Mac IP, e.g. `http://192.168.1.39:3001/**`
+
+5. **Authentication** → **Email Templates** → **Invite user**
+   - **Subject:** copy from `supabase/email-templates/invite-user-subject.txt`
+   - **Body:** paste the full HTML from `supabase/email-templates/invite-user.html`  
+     The button must use `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite` — **not** `{{ .ConfirmationURL }}` alone (that embeds the wrong `redirect_to`).
+   - Send a **new** invite after saving — old emails keep the old link.
 
 ### Accepting an invite
 
