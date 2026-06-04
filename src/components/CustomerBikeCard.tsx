@@ -1,10 +1,10 @@
 import type { Bike } from "@/lib/types";
 import { branchById } from "@/lib/constants";
 import { buildPromoDescription, workshopVisitLine } from "@/lib/facebook-post";
-import { BikePhotoFrame } from "./BikePhotoFrame";
+import { BikePhotoCarousel } from "./BikePhotoCarousel";
 
 export function CustomerBikeCard({ bike }: { bike: Bike }) {
-  const photo = bike.photos?.[0];
+  const photos = bike.photos ?? [];
   const title = [bike.make, bike.model].filter(Boolean).join(" ") || "Bike";
   const isAvailable = bike.status === "available";
   const branch = branchById(bike.branch_id);
@@ -13,11 +13,7 @@ export function CustomerBikeCard({ bike }: { bike: Bike }) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <BikePhotoFrame
-        src={photo?.url}
-        alt={title}
-        className="aspect-[4/3] w-full rounded-none"
-      />
+      <BikePhotoCarousel photos={photos} title={title} />
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-lg font-bold text-zinc-900">{title}</h3>
