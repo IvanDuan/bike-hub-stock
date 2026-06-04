@@ -110,7 +110,7 @@ Sign in with a staff email you invited (check inbox for password setup link).
 |---------|-----|
 | "Invalid login credentials" | User must accept invite and set password in Supabase email |
 | Invite link expired (`otp_expired`) | Send a **new invite** from Supabase → Authentication → Users. Old links stop working after ~1 hour. Sign-in will fail until a new invite is completed. |
-| **Email rate limit exceeded** | Default Supabase email allows ~**2 auth emails/hour**. Wait ~1 hour, or **skip email entirely**: delete the user → **Add user** with email + password + **Auto Confirm User** checked. For production, set up custom SMTP (Resend/SendGrid) under Authentication → SMTP. |
+| **Email rate limit exceeded** | Built-in Supabase email: ~**2 auth emails/hour**. Wait ~1 hour, use **Admin → Create account (no email)** in the app, or Supabase → **Users → Add user** (email + password + **Auto Confirm**). For many invites, set up custom SMTP (Resend/SendGrid) under Authentication → SMTP. |
 | No “Set password” screen | Link expired or was already used — request a new invite |
 | Photo upload fails | Check `bike-photos` bucket exists and storage policies are applied |
 | Browse page empty | Add bikes with status Available/Refurb; check public RLS policies ran |

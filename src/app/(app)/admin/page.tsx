@@ -18,6 +18,9 @@ export default function AdminPage() {
   const [inviteRole, setInviteRole] = useState<"staff" | "branch_manager">("staff");
   const [inviteBranch, setInviteBranch] = useState<BranchId | "">("");
   const [inviting, setInviting] = useState(false);
+  const [createPassword, setCreatePassword] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const canView =
     session?.role === "superadmin" || session?.role === "branch_manager" || session?.role === "manager";
@@ -95,11 +98,16 @@ export default function AdminPage() {
       </div>
 
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {success && (
+        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{success}</p>
+      )}
 
       <section className="rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
         <h2 className="text-sm font-semibold text-zinc-900">Invite staff</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Sends an invite email. The user will set their password and name.
+          Sends an invite email. The user will set their password and name. Supabase limits
+          built-in email to about <strong>2 per hour</strong> — use create-with-password if you
+          hit the limit.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3">
           <label className="block text-xs font-semibold text-zinc-600">
@@ -158,6 +166,7 @@ export default function AdminPage() {
             onClick={async () => {
               setInviting(true);
               setError(null);
+              setSuccess(null);
               try {
                 const resp = await fetch("/api/admin/invite", {
                   method: "POST",
@@ -173,6 +182,7 @@ export default function AdminPage() {
                   throw new Error(j?.error ?? `Invite failed (${resp.status})`);
                 }
                 setInviteEmail("");
+                setSuccess("Invite email sent.");
                 await load();
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Invite failed");
@@ -182,8 +192,67 @@ export default function AdminPage() {
             }}
             className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {inviting ? "Sending…" : "Send invite"}
+            {inviting ? "Sending…" : "Send invite email"}
           </button>
+
+          <div className="border-t border-zinc-200 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              No email (rate limit workaround)
+            </h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Creates the account immediately. Tell them the password in person or by text.
+            </p>
+            <label className="mt-3 block text-xs font-semibold text-zinc-600">
+              Temporary password (8+ characters)
+              <input
+                type="password"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                minLength={8}
+                autoComplete="new-password"
+                className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={creating || !inviteEmail.trim() || createPassword.length < 8}
+              onClick={async () => {
+                setCreating(true);
+                setError(null);
+                setSuccess(null);
+                try {
+                  const resp = await fetch("/api/admin/create-staff", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      email: inviteEmail.trim(),
+                      password: createPassword,
+                      role: isSuperAdmin ? inviteRole : "staff",
+                      branch_id: isSuperAdmin
+                        ? inviteBranch || null
+                        : session?.branchId ?? null,
+                    }),
+                  });
+                  const j = (await resp.json().catch(() => null)) as {
+                    error?: string;
+                    message?: string;
+                  } | null;
+                  if (!resp.ok) throw new Error(j?.error ?? `Create failed (${resp.status})`);
+                  setInviteEmail("");
+                  setCreatePassword("");
+                  setSuccess(j?.message ?? "Account created.");
+                  await load();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Create failed");
+                } finally {
+                  setCreating(false);
+                }
+              }}
+              className="mt-3 w-full rounded-xl border border-brand bg-brand-light px-4 py-3 text-sm font-semibold text-brand-dark disabled:opacity-60"
+            >
+              {creating ? "Creating…" : "Create account (no email)"}
+            </button>
+          </div>
         </div>
       </section>
 

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getAppUrl } from "@/lib/app-url";
 import {
   authEmailErrorMessage,
   getServiceAdmin,
@@ -14,11 +13,23 @@ export async function POST(req: Request) {
   if (!ctx) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as
-    | { email?: string; role?: "staff" | "branch_manager"; branch_id?: string | null }
+    | {
+        email?: string;
+        password?: string;
+        role?: "staff" | "branch_manager" | "superadmin";
+        branch_id?: string | null;
+      }
     | null;
 
   const email = body?.email?.trim().toLowerCase();
+  const password = body?.password ?? "";
   if (!email) return NextResponse.json({ error: "Missing email" }, { status: 400 });
+  if (password.length < 8) {
+    return NextResponse.json(
+      { error: "Password must be at least 8 characters." },
+      { status: 400 }
+    );
+  }
 
   const desiredRole = body?.role ?? "staff";
   const desiredBranch = body?.branch_id ?? null;
@@ -29,21 +40,20 @@ export async function POST(req: Request) {
   const { admin, error: serviceError } = getServiceAdmin();
   if (!admin) return serviceError ?? NextResponse.json({ error: "Server not configured." }, { status: 500 });
 
-  const appUrl = getAppUrl(req);
-  const redirectTo = `${appUrl}/auth/callback?type=invite`;
-
-  const { data, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { display_name: "", invited_by: "admin" },
-    redirectTo,
+  const { data, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { display_name: "" },
   });
 
-  if (inviteError) {
-    const mapped = authEmailErrorMessage(inviteError.message);
+  if (createError) {
+    const mapped = authEmailErrorMessage(createError.message);
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }
 
   try {
-    if (data?.user?.id) {
+    if (data.user?.id) {
       await admin.from("profiles").upsert(
         {
           id: data.user.id,
@@ -57,5 +67,9 @@ export async function POST(req: Request) {
     // non-blocking
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    message:
+      "Account created. Tell them to sign in at the app with this email and the password you set.",
+  });
 }
