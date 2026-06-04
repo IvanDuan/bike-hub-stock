@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [createPassword, setCreatePassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [inviteSentTo, setInviteSentTo] = useState<string | null>(null);
 
   const canView =
     session?.role === "superadmin" || session?.role === "branch_manager" || session?.role === "manager";
@@ -116,7 +117,10 @@ export default function AdminPage() {
             Email
             <input
               value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                setInviteSentTo(null);
+              }}
               placeholder="name@example.com"
               className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm"
               inputMode="email"
@@ -169,6 +173,7 @@ export default function AdminPage() {
               setInviting(true);
               setError(null);
               setSuccess(null);
+              setInviteSentTo(null);
               try {
                 const resp = await fetch("/api/admin/invite", {
                   method: "POST",
@@ -183,8 +188,9 @@ export default function AdminPage() {
                   const j = (await resp.json().catch(() => null)) as { error?: string } | null;
                   throw new Error(j?.error ?? `Invite failed (${resp.status})`);
                 }
+                const sentTo = inviteEmail.trim();
                 setInviteEmail("");
-                setSuccess("Invite email sent.");
+                setInviteSentTo(sentTo);
                 await load();
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Invite failed");
@@ -196,6 +202,20 @@ export default function AdminPage() {
           >
             {inviting ? "Sending…" : "Send invite email"}
           </button>
+
+          {inviteSentTo && (
+            <div
+              role="status"
+              className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+            >
+              <p className="font-semibold">Invitation sent to {inviteSentTo}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-emerald-800">
+                <li>They should receive an email shortly — ask them to check spam if nothing arrives.</li>
+                <li>The link lets them set a password and finish signing up (links expire after about an hour).</li>
+                <li>After that, they sign in here and choose the correct branch on the login screen.</li>
+              </ul>
+            </div>
+          )}
 
           <div className="border-t border-zinc-200 pt-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -222,6 +242,7 @@ export default function AdminPage() {
                 setCreating(true);
                 setError(null);
                 setSuccess(null);
+                setInviteSentTo(null);
                 try {
                   const resp = await fetch("/api/admin/create-staff", {
                     method: "POST",
@@ -272,7 +293,6 @@ export default function AdminPage() {
                   <p className="truncate font-semibold text-zinc-900">
                     {p.display_name || "Unnamed user"}
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{p.id}</p>
                 </div>
                 {savingId === p.id && (
                   <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">
