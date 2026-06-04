@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const redirectTo = `${appUrl}/auth/callback?type=invite`;
 
   const { data, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { display_name: "", invited_by: "admin" },
+    data: { invited_by: "admin" },
     redirectTo,
   });
 

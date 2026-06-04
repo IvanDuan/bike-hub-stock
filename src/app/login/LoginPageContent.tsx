@@ -10,6 +10,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { BRANCHES, type BranchId } from "@/lib/constants";
 import { BRAND_ASSETS } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/client";
+import { syncDisplayName } from "@/lib/sync-display-name";
 
 type AuthMode = "signin" | "set-password";
 
@@ -231,29 +232,22 @@ export default function LoginPageContent() {
     setError(null);
 
     const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-      data: { display_name: displayName.trim() },
-    });
-    setSubmitting(false);
-
-    if (updateError) {
-      setError(updateError.message);
+    const { error: passwordError } = await supabase.auth.updateUser({ password });
+    if (passwordError) {
+      setSubmitting(false);
+      setError(passwordError.message);
       return;
     }
 
-    // Keep profiles.display_name in sync for permissions + UI
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("profiles").update({ display_name: displayName.trim() }).eq("id", user.id);
-      }
-    } catch {
-      // non-blocking
+      await syncDisplayName(supabase, displayName);
+    } catch (err) {
+      setSubmitting(false);
+      setError(err instanceof Error ? err.message : "Failed to save your name.");
+      return;
     }
 
+    setSubmitting(false);
     router.replace(searchParams.get("next") ?? "/");
   }
 

@@ -42,16 +42,22 @@ function loginPageHandlesAuth(): boolean {
   );
 }
 
+function nameFromMetadata(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}): string {
+  const meta = (user.user_metadata?.display_name as string | undefined)?.trim();
+  if (meta) return meta;
+  return user.email?.split("@")[0] ?? "Staff";
+}
+
 function sessionFromUser(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
 }): StaffSession {
   return {
     email: user.email ?? "",
-    name:
-      (user.user_metadata?.display_name as string) ??
-      user.email?.split("@")[0] ??
-      "Staff",
+    name: nameFromMetadata(user),
   };
 }
 
@@ -72,14 +78,24 @@ async function enrichSession(session: StaffSession): Promise<StaffSession> {
   const rawRole = (profile?.role as StaffRole | undefined) ?? undefined;
   const role: StaffRole | undefined = rawRole === "manager" ? "branch_manager" : rawRole;
   const branchId = (profile?.branch_id as BranchId | null | undefined) ?? undefined;
-  const displayName = (profile?.display_name as string | undefined) ?? undefined;
+  const profileName = (profile?.display_name as string | undefined)?.trim();
+  const resolvedName = profileName || session.name;
+
+  // Heal invites that saved metadata but left profiles.display_name empty.
+  if (!profileName && resolvedName && user.id) {
+    void supabase
+      .from("profiles")
+      .update({ display_name: resolvedName })
+      .eq("id", user.id);
+  }
+
   const branchName = branchId
     ? BRANCHES.find((b) => b.id === branchId)?.name
     : undefined;
 
   return {
     ...session,
-    name: displayName ?? session.name,
+    name: resolvedName,
     role,
     branchId: branchId ?? session.branchId,
     branchName,

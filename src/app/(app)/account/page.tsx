@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { syncDisplayName } from "@/lib/sync-display-name";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function AccountPage() {
@@ -32,20 +33,7 @@ export default function AccountPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in.");
 
-      const name = displayName.trim();
-      if (!name) throw new Error("Name cannot be empty.");
-
-      const { error: authErr } = await supabase.auth.updateUser({
-        data: { display_name: name },
-      });
-      if (authErr) throw new Error(authErr.message);
-
-      const { error: profileErr } = await supabase
-        .from("profiles")
-        .update({ display_name: name })
-        .eq("id", user.id);
-      if (profileErr) throw new Error(profileErr.message);
-
+      await syncDisplayName(supabase, displayName);
       setMessage("Name updated.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update name.");
