@@ -26,6 +26,9 @@ export function branchLocation(branchId: BranchId | null | undefined): string {
   return branchById(branchId)?.location ?? BRANCHES[0].location;
 }
 
+/** Shown in header for superadmin when no home branch is assigned. */
+export const SUPERADMIN_LOCATION_LABEL = "All hubs";
+
 export const BIKE_STATUSES = [
   { value: "donated", label: "Donated", color: "bg-slate-100 text-slate-700" },
   { value: "refurb", label: "In Refurb", color: "bg-amber-100 text-amber-800" },

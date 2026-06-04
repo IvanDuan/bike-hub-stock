@@ -68,7 +68,9 @@ export function getServiceAdmin() {
 }
 
 /** Maps app role to profiles.role column value. */
-export function profileRoleForDb(role: "staff" | "branch_manager" | "superadmin"): string {
+export function profileRoleForDb(
+  role: "staff" | "branch_manager" | "superadmin" | "manager"
+): string {
   if (role === "branch_manager") return "manager";
   return role;
 }

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { branchMismatchMessage } from "@/lib/branch-auth";
-import { branchLocation, type BranchId } from "@/lib/constants";
+import { branchLocation, SUPERADMIN_LOCATION_LABEL, type BranchId } from "@/lib/constants";
 import { useAuth } from "./AuthProvider";
 
 const BRANCH_STORAGE_KEY = "bike-hub-stock-branch";
@@ -23,6 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !session?.branchId || typeof window === "undefined") return;
+    if (session.role === "superadmin") return;
     const saved = window.localStorage.getItem(BRANCH_STORAGE_KEY) as BranchId | null;
     if (saved && session.branchId !== saved) {
       const msg = branchMismatchMessage(saved, session.branchId);
@@ -50,7 +51,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-40 shadow-sm">
         <BrandHeaderBar
-          location={branchLocation(session.branchId)}
+          location={
+            session.role === "superadmin" && !session.branchId
+              ? SUPERADMIN_LOCATION_LABEL
+              : branchLocation(session.branchId)
+          }
           subtitle={`Hi, ${session.name}`}
           trailing={
             <HeaderMenu

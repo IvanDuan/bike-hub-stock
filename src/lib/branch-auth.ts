@@ -20,12 +20,16 @@ export async function validateBranchForUser(
   const supabase = createClient();
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("branch_id")
+    .select("role, branch_id")
     .eq("id", userId)
     .maybeSingle();
 
   if (error) {
     return `Could not verify your branch (${error.message}). Try again.`;
+  }
+
+  if (profile?.role === "superadmin") {
+    return null;
   }
 
   const assigned = (profile?.branch_id as BranchId | null | undefined) ?? null;

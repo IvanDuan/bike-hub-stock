@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { profileRoleForDb } from "@/lib/admin-api";
 import { createClient } from "@/lib/supabase/server";
 import type { StaffProfile } from "@/lib/types";
 
@@ -101,7 +102,11 @@ export async function PATCH(req: Request) {
   }
 
   const patch: Record<string, unknown> = {};
-  if (body.role) patch.role = body.role;
+  if (body.role) {
+    patch.role = profileRoleForDb(
+      body.role === "branch_manager" ? "branch_manager" : body.role
+    );
+  }
   if (body.branch_id !== undefined) patch.branch_id = body.branch_id;
   if (typeof body.display_name === "string") patch.display_name = body.display_name;
 

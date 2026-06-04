@@ -91,9 +91,11 @@ export default function AdminPage() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Admin</h1>
         <p className="text-sm text-zinc-500">
-          {isBranchManager
-            ? "Manage staff in your branch"
-            : "Manage staff branches and roles"}
+          {isSuperAdmin
+            ? "All branches — manage every staff member, manager, and role"
+            : isBranchManager
+              ? "Your branch only — manage staff in your hub"
+              : "Manage staff branches and roles"}
         </p>
       </div>
 
